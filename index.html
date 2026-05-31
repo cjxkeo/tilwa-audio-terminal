@@ -128,92 +128,83 @@
                     break;
                 case 'listen':
                     if (!param) {
-                        printLine("Error: Please provide a unique code. Example/Usage: listen [code]");
+                        printLine("Error: Please provide a track code. Usage: listen [code]");
                         return;
-                    }
-                    
-                    const trackData = fileDatabase[param];
-                    if (trackData) {
+    }
+    
+                   printLine(`Querying database cluster for node [${param}]...`);
+    
+                      fetch(`/functions/listen?code=${param}`)
+                    .then(response => {
+                        if (!response.ok) throw new Error("Track not found or database error.");
+                        return response.json();
+                    })
+                    .then(track => {
                         if (currentAudio) {
                             currentAudio.pause();
                             currentAudio.currentTime = 0;
                         }
-                        printLine(`Connecting to audio stream...`);
-                        printLine(`Playing  [${param}]: ${trackData.name}`);
-                        currentAudio = new Audio(trackData.url);
-                        currentAudio.play();
-                    } else {
-                        printLine(`Error: Code [${param}] not found in database.`);
-                    }
-                    break;
-                case 'stop':
-                    if (currentAudio && !currentAudio.paused) {
-                        currentAudio.pause();
-                        currentAudio.currentTime = 0;
-                        printLine("File playback stopped.");
-                    } else {
-                        printLine("No file is currently playing.");
-                    }
-                    break;
-                default:
-                    printLine(`Error: Command not found: ${cmd}. Type 'help' for a list of commands.`);
-            }
-        }
-
-        // --- File Handling & Database Mock ---
-
-        function handleFile(file) {
-            if (file && file.type.startsWith('audio/')) {
-                const uniqueCode = generateCode();
-                const objectUrl = URL.createObjectURL(file);
-                
-                // Save to our mock database
-                fileDatabase[uniqueCode] = {
-                    name: file.name,
-                    url: objectUrl
-                };
-                
-                printLine(`Uploading [====================] 100%`);
-                printLine(`Success! File indexed successfully.`);
-                printLine(`Track Name: ${file.name}`);
-                printLine(`Track Code: ${uniqueCode}`);
-                printLine(`\nShare this code! To play it, type: listen ${uniqueCode}`);
-            } else {
-                printLine(`\nError: Invalid file type. Please upload a supported audio format.`);
-            }
-        }
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                printLine(`\nguest@tilwa:~$ upload ${e.target.files[0].name}`);
-                handleFile(e.target.files[0]);
-            }
-        });
-
-        // --- Drag and Drop ---
-        document.body.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            document.body.classList.add('dragover');
-        });
-
-        document.body.addEventListener('dragleave', () => {
-            document.body.classList.remove('dragover');
-        });
-
-        document.body.addEventListener('drop', (e) => {
-            e.preventDefault();
-            document.body.classList.remove('dragover');
             
-            if (e.dataTransfer.files.length > 0) {
-                const droppedFile = e.dataTransfer.files[0];
-                printLine(`\nguest@tilwa:~$ upload ${droppedFile.name}`);
-                handleFile(droppedFile);
-            }
+            // Reconstruct the audio file out of the base64 text string
+            currentAudio = new Audio(track.data);
+            currentAudio.play();
+            printLine(`Streaming asset [${track.name}] successfully.`);
+        })
+        .catch(err => {
+            printLine(`Error: ${err.message}`);
         });
+    break;
 
-        // Keep focus locked on input
+    function handleFile(file) {
+    if (file) {
+        // enforce the KV text size check
+        if (file.size > 18 * 1024 * 1024) {
+            printLine("Error: File size exceeds the 18MB database buffer allocation limit.");
+            return;
+        }
+
+        printLine("Encoding file binary stream to terminal text standard...");
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(file); // converts the audio file to a base64 URL string
+        
+        reader.onload = function () {
+            printLine("Establishing uplink connection to database string arrays...");
+            
+            const payload = {
+                fileName: file.name,
+                fileType: file.type,
+                fileData: reader.result
+            };
+
+            fetch('/functions/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Uplink rejected by database.");
+                return res.json();
+            })
+            .then(data => {
+                printLine(`Uploading [====================] 100%`);
+                printLine(`Success! File globally indexed.`);
+                printLine(`Track Name: ${data.name}`);
+                printLine(`Track Code: ${data.code}`);
+                printLine(`\nShare this code! Anyone can play it using: listen ${data.code}`);
+            })
+            .catch(err => {
+                printLine(`Upload failed: ${err.message}`);
+            });
+        };
+
+        reader.onerror = function (error) {
+            printLine(`Error reading file: ${error}`);
+        };
+    }
+}
+
         document.addEventListener('click', () => {
-            // Only refocus if the user isn't trying to highlight/copy text
             if (window.getSelection().toString() === '') {
                 cmdInput.focus();
             }
