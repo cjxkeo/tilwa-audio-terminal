@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tilwa - terminal audio</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.2s, border 0.2s;
+        }
+
+        body.dragover {
+            background-color: #111111;
+            border: 2px dashed #555555;
+        }
+
+        #output {
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .input-line {
+            display: flex;
+            align-items: center;
+        }
+
+        .prompt {
+            margin-right: 10px;
+        }
+
+        #cmd-input {
+            background: transparent;
+            border: none;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1em;
+            flex-grow: 1;
+            outline: none;
+        }
+
+        #file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="output"></div>
+    <div class="input-line">
+        <span class="prompt">user@tilwa:~$</span>
+        <input type="text" id="cmd-input" autofocus autocomplete="off" spellcheck="false">
+    </div>
+    
+    <input type="file" id="file-input" accept="audio/*">
+    
+    <script>
+        const outputDiv = document.getElementById('output');
+        const cmdInput = document.getElementById('cmd-input');
+        const fileInput = document.getElementById('file-input');
+        
+        let currentAudio = null;
+        
+        // chatbbc told me this did something
+        const fileDatabase = {};
+
+        // generate random string of doodads
+        function generateCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 9; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function printLine(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            outputDiv.appendChild(div);
+            // Auto-scroll to the bottom as new lines are added
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+
+        printLine("tilwa: Enter a command to start");
+
+        // typing handler
+        cmdInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const rawInput = this.value.trim();
+                printLine(`\nguest@tilwa:~$ ${rawInput}`);
+                this.value = '';
+                processCommand(rawInput);
+            }
+        });
+
+        // command routing logic
+        function processCommand(rawInput) {
+            if (rawInput === '') return;
+            
+            // argument handler
+            const args = rawInput.split(' ').filter(Boolean);
+            const cmd = args[0].toLowerCase();
+            const param = args[1]; // unique code if provided
+            
+            switch(cmd) {
+                case 'help':
+                    printLine("Available commands: help, info, formats, upload, listen [code], stop");
+                    break;
+                case 'info':
+                    printLine("heavy beta, early access contact me if theres any issues, will make this pretty in the future - tilwa means terminally in love with audio because i thought it sounded nice + terminal sounds like terminally haha get it");
+                    break;
+                case 'formats':
+                    printLine("Supported file formats: MP3, WAV, FLAC, AAC, M4A, OGG, OPUS, WMA, AIFF, ALAC, AMR, AU, RA, RM, APE, MPC, TTA, WV, DSD, DSF, DFF, AC3, DTS, VOC, CAF, PCM, AIFC, SND");
+                    break;
+                case 'upload':
+                    printLine("Drag and drop an audio file into this window, or select one from the prompt");
+                    fileInput.click();
+                    break;
+                case 'listen':
+                    if (!param) {
+                        printLine("Error: Please provide a unique code. Example/Usage: listen [code]");
+                        return;
+                    }
+                    
+                    const trackData = fileDatabase[param];
+                    if (trackData) {
+                        if (currentAudio) {
+                            currentAudio.pause();
+                            currentAudio.currentTime = 0;
+                        }
+                        printLine(`Connecting to audio stream...`);
+                        printLine(`Playing  [${param}]: ${trackData.name}`);
+                        currentAudio = new Audio(trackData.url);
+                        currentAudio.play();
+                    } else {
+                        printLine(`Error: Code [${param}] not found in database.`);
+                    }
+                    break;
+                case 'stop':
+                    if (currentAudio && !currentAudio.paused) {
+                        currentAudio.pause();
+                        currentAudio.currentTime = 0;
+                        printLine("File playback stopped.");
+                    } else {
+                        printLine("No file is currently playing.");
+                    }
+                    break;
+                default:
+                    printLine(`Error: Command not found: ${cmd}. Type 'help' for a list of commands.`);
+            }
+        }
+
+        // --- File Handling & Database Mock ---
+
+        function handleFile(file) {
+            if (file && file.type.startsWith('audio/')) {
+                const uniqueCode = generateCode();
+                const objectUrl = URL.createObjectURL(file);
+                
+                // Save to our mock database
+                fileDatabase[uniqueCode] = {
+                    name: file.name,
+                    url: objectUrl
+                };
+                
+                printLine(`Uploading [====================] 100%`);
+                printLine(`Success! File indexed successfully.`);
+                printLine(`Track Name: ${file.name}`);
+                printLine(`Track Code: ${uniqueCode}`);
+                printLine(`\nShare this code! To play it, type: listen ${uniqueCode}`);
+            } else {
+                printLine(`\nError: Invalid file type. Please upload a supported audio format.`);
+            }
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                printLine(`\nguest@tilwa:~$ upload ${e.target.files[0].name}`);
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // --- Drag and Drop ---
+        document.body.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            document.body.classList.add('dragover');
+        });
+
+        document.body.addEventListener('dragleave', () => {
+            document.body.classList.remove('dragover');
+        });
+
+        document.body.addEventListener('drop', (e) => {
+            e.preventDefault();
+            document.body.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                const droppedFile = e.dataTransfer.files[0];
+                printLine(`\nguest@tilwa:~$ upload ${droppedFile.name}`);
+                handleFile(droppedFile);
+            }
+        });
+
+        // Keep focus locked on input
+        document.addEventListener('click', () => {
+            // Only refocus if the user isn't trying to highlight/copy text
+            if (window.getSelection().toString() === '') {
+                cmdInput.focus();
+            }
+        });
+    </script>
+</body>
+</html>
