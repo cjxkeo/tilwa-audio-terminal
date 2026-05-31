@@ -69,140 +69,166 @@
         const fileInput = document.getElementById('file-input');
         
         let currentAudio = null;
-        
-        // chatbbc told me this did something
-        const fileDatabase = {};
 
-        // generate random string of doodads
-        function generateCode() {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let result = '';
-            for (let i = 0; i < 9; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return result;
-        }
-
+        // dont touch this either
         function printLine(text) {
             const div = document.createElement('div');
             div.textContent = text;
             outputDiv.appendChild(div);
-            // Auto-scroll to the bottom as new lines are added
             window.scrollTo(0, document.body.scrollHeight);
         }
 
         printLine("tilwa: Enter a command to start");
 
-        // typing handler
+        // this lets the user type todo: do not touch this
+        // i thought i was smart by copying code but i endeed up messing more stuff
         cmdInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 const rawInput = this.value.trim();
-                printLine(`\nguest@tilwa:~$ ${rawInput}`);
+                printLine(`\nuser@tilwa:~$ ${rawInput}`);
                 this.value = '';
                 processCommand(rawInput);
             }
         });
 
-        // command routing logic
+        // command logic
         function processCommand(rawInput) {
             if (rawInput === '') return;
             
-            // argument handler
             const args = rawInput.split(' ').filter(Boolean);
             const cmd = args[0].toLowerCase();
-            const param = args[1]; // unique code if provided
+            const param = args[1];
             
             switch(cmd) {
                 case 'help':
                     printLine("Available commands: help, info, formats, upload, listen [code], stop");
                     break;
                 case 'info':
-                    printLine("heavy beta, early access contact me if theres any issues, will make this pretty in the future - tilwa means terminally in love with audio because i thought it sounded nice + terminal sounds like terminally haha get it");
+                    printLine("heavy beta, this is technically early access, if there are any issues just tell me todo: make this pretty later");
                     break;
                 case 'formats':
                     printLine("Supported file formats: MP3, WAV, FLAC, AAC, M4A, OGG, OPUS, WMA, AIFF, ALAC, AMR, AU, RA, RM, APE, MPC, TTA, WV, DSD, DSF, DFF, AC3, DTS, VOC, CAF, PCM, AIFC, SND");
                     break;
                 case 'upload':
-                    printLine("Drag and drop an audio file into this window, or select one from the prompt");
+                    printLine("Drag and drop an audio file into this window");
                     fileInput.click();
                     break;
                 case 'listen':
                     if (!param) {
                         printLine("Error: Please provide a track code. Usage: listen [code]");
                         return;
-    }
-    
-                   printLine(`Querying database cluster for node [${param}]...`);
-    
-                      fetch(`/functions/listen?code=${param}`)
-                    .then(response => {
-                        if (!response.ok) throw new Error("Track not found or database error.");
-                        return response.json();
-                    })
-                    .then(track => {
-                        if (currentAudio) {
-                            currentAudio.pause();
-                            currentAudio.currentTime = 0;
-                        }
-            
-            // Reconstruct the audio file out of the base64 text string
-            currentAudio = new Audio(track.data);
-            currentAudio.play();
-            printLine(`Streaming asset [${track.name}] successfully.`);
-        })
-        .catch(err => {
-            printLine(`Error: ${err.message}`);
-        });
-    break;
+                    }
+                    
+                    printLine(`Querying database cluster for node [${param}]...`);
+                    
+                    fetch(`/functions/listen?code=${param}`)
+                        .then(response => {
+                            if (!response.ok) throw new Error("Track not found or database error :-(.");
+                            return response.json();
+                        })
+                        .then(track => {
+                            if (currentAudio) {
+                                currentAudio.pause();
+                                currentAudio.currentTime = 0;
+                            }
+                            
+                            currentAudio = new Audio(track.data);
+                            currentAudio.play();
+                            printLine(`Streaming asset [${track.name}] successfully.`);
+                        })
+                        .catch(err => {
+                            printLine(`Error: ${err.message}`);
+                        });
+                    break;
+                case 'stop':
+                    if (currentAudio && !currentAudio.paused) {
+                        currentAudio.pause();
+                        currentAudio.currentTime = 0;
+                        printLine("File playback stopped.");
+                    } else {
+                        printLine("No file/sound is currently playing.");
+                    }
+                    break;
+                default:
+                    printLine(`Error: Command not found: ${cmd}. Type 'help' for a list of commands.`);
+            }
+        }
+// file handler and whatnot do not touch this either
+        function handleFile(file) {
+            if (file) {
+                if (file.size > 18 * 1024 * 1024) {
+                    printLine("Error: File size exceeds the 18MB database buffer allocation limit.");
+                    return;
+                }
 
-    function handleFile(file) {
-    if (file) {
-        // enforce the KV text size check
-        if (file.size > 18 * 1024 * 1024) {
-            printLine("Error: File size exceeds the 18MB database buffer allocation limit.");
-            return;
+                printLine("Encoding file binary stream to terminal text standard...");
+                
+                const reader = new FileReader();
+                reader.readAsDataURL(file); 
+                
+                reader.onload = function () {
+                    printLine("Establishing uplink connection to database string arrays...");
+                    
+                    const payload = {
+                        fileName: file.name,
+                        fileType: file.type,
+                        fileData: reader.result
+                    };
+
+                    fetch('/functions/upload', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error("Uplink rejected by database :-(.");
+                        return res.json();
+                    })
+                    .then(data => {
+                        printLine(`Uploading [====================] 100%`);
+                        printLine(`Success! File globally indexed.`);
+                        printLine(`File Name: ${data.name}`);
+                        printLine(`File Code: ${data.code}`);
+                        printLine(`\nShare this code to others! Anyone can play it using: listen ${data.code}`);
+                    })
+                    .catch(err => {
+                        printLine(`Upload failed: ${err.message}`);
+                    });
+                };
+
+                reader.onerror = function (error) {
+                    printLine(`Error reading file: ${error}`);
+                };
+            }
         }
 
-        printLine("Encoding file binary stream to terminal text standard...");
-        
-        const reader = new FileReader();
-        reader.readAsDataURL(file); // converts the audio file to a base64 URL string
-        
-        reader.onload = function () {
-            printLine("Establishing uplink connection to database string arrays...");
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                printLine(`\nuser@tilwa:~$ upload ${e.target.files[0].name}`);
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // drag and drop dont touch this either
+        document.body.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            document.body.classList.add('dragover');
+        });
+
+        document.body.addEventListener('dragleave', () => {
+            document.body.classList.remove('dragover');
+        });
+
+        document.body.addEventListener('drop', (e) => {
+            e.preventDefault();
+            document.body.classList.remove('dragover');
             
-            const payload = {
-                fileName: file.name,
-                fileType: file.type,
-                fileData: reader.result
-            };
-
-            fetch('/functions/upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            .then(res => {
-                if (!res.ok) throw new Error("Uplink rejected by database.");
-                return res.json();
-            })
-            .then(data => {
-                printLine(`Uploading [====================] 100%`);
-                printLine(`Success! File globally indexed.`);
-                printLine(`Track Name: ${data.name}`);
-                printLine(`Track Code: ${data.code}`);
-                printLine(`\nShare this code! Anyone can play it using: listen ${data.code}`);
-            })
-            .catch(err => {
-                printLine(`Upload failed: ${err.message}`);
-            });
-        };
-
-        reader.onerror = function (error) {
-            printLine(`Error reading file: ${error}`);
-        };
-    }
-}
+            if (e.dataTransfer.files.length > 0) {
+                const droppedFile = e.dataTransfer.files[0];
+                printLine(`\nuser@tilwa:~$ upload ${droppedFile.name}`);
+                handleFile(droppedFile);
+            }
+        });
 
         document.addEventListener('click', () => {
             if (window.getSelection().toString() === '') {
